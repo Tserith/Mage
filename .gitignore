@@ -1,0 +1,6 @@
+﻿*
+!.gitignore
+!README.md
+!CMakeLists.txt
+!mage.c
+!mage.h

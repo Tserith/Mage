@@ -1,11 +1,15 @@
 #include "mage.h"
 
-int main(unsigned int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	void* buf;
 	long fsize;
 
-	if (argc < 2) return 1;
+	if ((unsigned int)argc < 2)
+	{
+		printf("[-] No program provided to load\n");
+		exit(1);
+	}
 
 	// read in executable to load
 	FILE* fd = fopen(argv[1], "rb");
@@ -57,10 +61,11 @@ void loadWindows(void* buf, long size, uint32_t vsize)
 	}
 
 	memcpy(vMem, (uint8_t*)buf + sizeof(MAGE_HEADER), size);
+	(uint64_t)vMem += ((MAGE_HEADER*)buf)->entry;
 	free(buf);
-	
+
 	// execute program
-	(*(void(*)())((int)vMem + ((MAGE_HEADER*)buf)->entry))();
+	(*(void(*)())(vMem))();
 
 	VirtualFree(vMem, 0, MEM_RELEASE);
 }

@@ -1,4 +1,4 @@
-#include "mage.h"
+#include "loader.h"
 
 int main(int argc, char* argv[])
 {
@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
 	FILE* fd = fopen(argv[1], "rb");
 	if (!fd)
 	{
-		printf("[-] Unable to open provided file\n");
+		printf("[-] Unable to open provided file: %s\n", argv[1]);
 		exit(1);
 	}
 
@@ -39,14 +39,16 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	if (((MAGE_HEADER*)buf)->entry > ((MAGE_HEADER*)buf)->vsize)
+	if (((MAGE_HEADER*)buf)->entry > ((MAGE_HEADER*)buf)->csize)
 	{
 		printf("[-] Entry point must not exceed size of memory\n");
 		exit(1);
 	}
 
+	// do dynamic linking
+
 	// load program into memory
-	load(buf, fsize - sizeof(MAGE_HEADER), ((MAGE_HEADER*)buf)->vsize);
+	load(buf, fsize - sizeof(MAGE_HEADER), ((MAGE_HEADER*)buf)->csize + ((MAGE_HEADER*)buf)->ssize);
 
 	return 0;
 }
@@ -63,6 +65,8 @@ void loadWindows(void* buf, long size, uint32_t vsize)
 	memcpy(vMem, (uint8_t*)buf + sizeof(MAGE_HEADER), size);
 	(uint64_t)vMem += ((MAGE_HEADER*)buf)->entry;
 	free(buf);
+
+	// change process name
 
 	// execute program
 	(*(void(*)())(vMem))();

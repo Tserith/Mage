@@ -2,7 +2,10 @@
 !.gitignore
 !README.md
 !CMakeLists.txt
-!mage.c
-!mage.h
-!programs
-!programs/*.asm
+!src
+!src/*.c
+!src/*/
+!src/*/*.asm
+!include
+!include/*.h
+!include/*.inc

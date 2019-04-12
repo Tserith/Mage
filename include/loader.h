@@ -1,18 +1,4 @@
-#ifdef WIN32
-        #include <Windows.h>
-#elif UNIX
-        #include <unistd.h>
-#endif
-
-#include <stdio.h>
-#include <stdint.h>
-
-typedef struct MAGE_HEADER
-{
-	uint32_t magic;
-	uint32_t vsize;
-	uint32_t entry;
-}MAGE_HEADER;
+#include "mage.h"
 
 void loadWindows(void* buf, long size, uint32_t vsize);
 void loadLinux(void* buf, long size, uint32_t vsize);

@@ -1,5 +1,12 @@
 # Minimal Agnostic General Executable
 
-Work in progress. Supported on Windows and Linux.
+Work in progress.
 
-The loader does not currently give executables their own process.
+
+
+## Limitations
+
+- Executables are loaded into the process space of the loader
+- Does not support exports
+- Only recognizes .text section
+- Only supports position independent code

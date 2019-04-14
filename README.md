@@ -10,3 +10,4 @@ Work in progress.
 - Does not support exports
 - Only recognizes .text section
 - Only supports position independent code
+- Does not safely handle malformed files

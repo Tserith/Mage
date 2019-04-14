@@ -1,5 +1,11 @@
 #include "mage.h"
 
+typedef struct lib
+{
+	char* name;
+	struct lib* next;
+}lib;
+
 typedef struct sym
 {
 	char* name;
@@ -24,6 +30,7 @@ typedef struct obj
 	struct obj* next;
 }obj;
 
+void readObj(obj** objList, char* file);
 obj* parseCOFF(uint8_t* buf, long size);
 obj* parseELF(uint8_t* buf, long size);
 void link(obj* objList);

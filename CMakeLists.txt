@@ -15,7 +15,7 @@ set(PROGRAM_LIST popup)
 foreach(prog ${PROGRAM_LIST})
 	file(GLOB SOURCES src/${prog}/*.asm)
 	add_executable(${prog} ${SOURCES})
-	#set(CMAKE_ASM_NASM_LINK_EXECUTABLE "echo pizza")
+	#set(CMAKE_ASM_NASM_LINK_EXECUTABLE "echo pizza") use to link objects
 
 	if(WIN32)
 		set(CMAKE_ASM_NASM_LINK_EXECUTABLE "link <OBJECTS> /ENTRY:start /SUBSYSTEM:WINDOWS /OUT:<TARGET> <LINK_LIBRARIES>")

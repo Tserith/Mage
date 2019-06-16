@@ -8,13 +8,26 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define MAGE_MAGIC 0x4547414d;
+
+#pragma pack(1)
+
 typedef struct MAGE_HEADER
 {
 	uint32_t magic;
 	uint32_t entry;
-	uint32_t ssize;
-	uint32_t eptr;
-	uint32_t iptr;
-	uint32_t cptr;
 	uint32_t csize;
+	uint32_t ssize;
+	uint16_t rptr;
+	uint16_t cptr;
 }MAGE_HEADER;
+
+typedef uint32_t MAGE_RELOC_VADDR;
+typedef uint16_t MAGE_STR_PTR;
+typedef MAGE_STR_PTR MAGE_IMPORT_ENTRY;
+
+typedef struct MAGE_RELOC_ENTRY
+{
+	MAGE_STR_PTR strptr;
+	MAGE_RELOC_VADDR vaddr;
+}MAGE_RELOC_ENTRY;

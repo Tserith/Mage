@@ -3,24 +3,45 @@ project(Mage)
 set(CMAKE_BUILD_TYPE Release)
 enable_language(ASM_NASM)
 include_directories(include)
-if(MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif()
 
 add_executable(moad src/loader.c)
 add_executable(mink src/linker.c)
 
-set(PROGRAM_LIST popup)
+if(MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+	set_target_properties(moad PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+endif()
+
+# only supports 64 bit
+if(WIN32)
+	set(CMAKE_ASM_NASM_OBJECT_FORMAT win64)
+elseif(UNIX)
+	set(CMAKE_ASM_NASM_OBJECT_FORMAT elf64)
+endif()
+
+# list of projects to compile
+set(PROGRAM_LIST popup print)
 
 foreach(prog ${PROGRAM_LIST})
 	file(GLOB SOURCES src/${prog}/*.asm)
 	add_executable(${prog} ${SOURCES})
-	#set(CMAKE_ASM_NASM_LINK_EXECUTABLE "echo pizza") use to link objects
+	add_dependencies(${prog} mink) # compile linker first
 
-	if(WIN32)
-		set(CMAKE_ASM_NASM_LINK_EXECUTABLE "link <OBJECTS> /ENTRY:start /SUBSYSTEM:WINDOWS /OUT:<TARGET> <LINK_LIBRARIES>")
-		target_link_libraries(popup user32.lib kernel32.lib)
-	elseif(UNIX)
-		# need to test
+	if(true) # link to MAGE executable
+		set(CMAKE_ASM_NASM_LINK_EXECUTABLE "mink <OBJECTS> -o <TARGET_NAME>.mage -l <LINK_LIBRARIES>")
+	else() # link normally to PE executable
+		if(WIN32)
+			set(CMAKE_ASM_NASM_LINK_EXECUTABLE "link <OBJECTS> /ENTRY:start /SUBSYSTEM:WINDOWS /OUT:<TARGET> <LINK_LIBRARIES>")
+		elseif(UNIX)
+			# todo
+		endif()
 	endif()
 endforeach(prog)
+
+# project libraries
+if(WIN32)
+	target_link_libraries(popup user32)
+	target_link_libraries(print kernel32)
+elseif(UNIX)
+	# todo
+endif()

@@ -1,14 +1,15 @@
 #ifdef WIN32
-        #include <Windows.h>
+#include <Windows.h>
+#include <conio.h>
 #elif UNIX
-        #include <unistd.h>
-		#include <elf.h>
+#include <unistd.h>
+#include <elf.h>
 #endif
 
 #include <stdio.h>
 #include <stdint.h>
 
-#define MAGE_MAGIC 0x4547414d;
+#define MAGE_MAGIC 0x4547414d
 
 #pragma pack(1)
 
@@ -17,7 +18,6 @@ typedef struct MAGE_HEADER
 	uint32_t magic;
 	uint32_t entry;
 	uint32_t csize;
-	uint32_t ssize;
 	uint16_t rptr;
 	uint16_t cptr;
 }MAGE_HEADER;

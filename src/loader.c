@@ -1,80 +1,144 @@
 #include "loader.h"
 
-int main(int argc, char* argv[])
+#ifdef WIN32
+	int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
+#elif(UNIX)
+	int main(int argc, char* argv[])
+#endif()
 {
-	void* buf;
+	MAGE_HEADER* buf;
 	long fsize;
+	
+#ifdef WIN32
+	int argc = __argc;
+	char** argv = __argv;
+#endif
 
-	if ((unsigned int)argc < 2)
-	{
-		printf("[-] No program provided to load\n");
-		exit(1);
-	}
+	if ((unsigned int)argc < 2) error("No program provided to load", NULL);
 
 	// read in executable to load
 	FILE* fd = fopen(argv[1], "rb");
-	if (!fd)
-	{
-		printf("[-] Unable to open provided file: %s\n", argv[1]);
-		exit(1);
-	}
+	if (!fd) error("Unable to open provided file", argv[1]);
 
 	fseek(fd, 0, SEEK_END);
 	fsize = ftell(fd);
 	rewind(fd);
 
-	buf = malloc(fsize);
+	buf = (MAGE_HEADER*)malloc(fsize);
 	fread(buf, 1, fsize, fd);
 	fclose(fd);
 
-	if (fsize >= 4 && ((MAGE_HEADER*)buf)->magic != 0x4547414d)
-	{
-		printf("[-] Invalid signature\n");
-		exit(1);
-	}
+	if (fsize >= 4 && buf->magic != MAGE_MAGIC) error("Invalid signature", NULL);
 
-	if (fsize < sizeof(MAGE_HEADER))
-	{
-		printf("[-] Header incomplete\n");
-		exit(1);
-	}
+	if (fsize < sizeof(MAGE_HEADER)) error("Header incomplete", NULL);
 
-	if (((MAGE_HEADER*)buf)->entry > ((MAGE_HEADER*)buf)->csize)
-	{
-		printf("[-] Entry point must not exceed size of memory\n");
-		exit(1);
-	}
+	if (buf->csize > fsize - sizeof(MAGE_HEADER)) error("Code size must not exceed size of file", NULL);
 
-	// do dynamic linking
+	if (buf->entry > buf->csize) error("Entry point must not exceed size of memory", NULL);
+
+	if (buf->rptr > fsize || buf->cptr > fsize) error("Header pointers must not exceed size of file", NULL);
+
+	// dynamically link imports
+	dlink(buf);
 
 	// load program into memory
-	load(buf, fsize - sizeof(MAGE_HEADER), ((MAGE_HEADER*)buf)->csize + ((MAGE_HEADER*)buf)->ssize);
+	void* code = load(buf);
+
+	free(buf);
+
+	// set stack pointer to jmp - buf->entry + buf->csize
+
+	// execute program
+	(*(void(*)())(code))();
+
+	VirtualFree(code, 0, MEM_RELEASE);
 
 	return 0;
 }
 
-void loadWindows(void* buf, long size, uint32_t vsize)
+void dlink(void* buf)
 {
-	LPVOID vMem = VirtualAlloc(NULL, vsize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-	if (!vMem)
+	MAGE_HEADER* info = (MAGE_HEADER*)buf;
+	MAGE_IMPORT_ENTRY* imports = (MAGE_IMPORT_ENTRY*)((uint8_t*)buf + sizeof(MAGE_HEADER));
+	MAGE_RELOC_ENTRY* relocs = (MAGE_RELOC_ENTRY*)((uint8_t*)buf + info->rptr);
+
+	// handle imports
+	while ((uint8_t*)imports < (uint8_t*)buf + info->rptr)
 	{
-		printf("[-] Unable to allocate virtual memory\n");
-		exit(1);
+#ifdef WIN32
+		HMODULE libHandle = LoadLibrary((LPCSTR)buf + *imports);
+#elif UNIX
+		// todo
+#endif
+		if (!libHandle) error("Unable to load library", (char*)buf + *imports);
+
+		// fix relocations if found in library
+		// first string pointer assumed to be beginning of string table
+		while ((uint8_t*)relocs < (uint8_t*)buf + *(MAGE_STR_PTR*)((uint8_t*)buf + sizeof(MAGE_HEADER)))
+		{
+#ifdef WIN32
+			FARPROC faddr = GetProcAddress(libHandle, (LPCSTR)buf + relocs->strptr);
+#elif UNIX
+			// todo
+#endif
+			if (faddr)
+			{
+				*(uint64_t*)((uint8_t*)buf + info->cptr + relocs->vaddr) = (uint64_t)faddr;
+				relocs->strptr = 0;
+			}
+			
+			relocs++;
+		}
+		
+		relocs = (MAGE_RELOC_ENTRY*)((uint8_t*)buf + info->rptr);
+		imports++;
 	}
 
-	memcpy(vMem, (uint8_t*)buf + sizeof(MAGE_HEADER), size);
-	(uint64_t)vMem += ((MAGE_HEADER*)buf)->entry;
-	free(buf);
+	// check for unlinked relocations
+	// first string pointer assumed to be beginning of string table
+	while ((uint8_t*)relocs < (uint8_t*)buf + *(MAGE_STR_PTR*)((uint8_t*)buf + sizeof(MAGE_HEADER)))
+	{
+		if (relocs->strptr) error("Unable to link function", (uint8_t*)buf + relocs->strptr);
 
-	// change process name
-
-	// execute program
-	(*(void(*)())(vMem))();
-
-	VirtualFree(vMem, 0, MEM_RELEASE);
+		relocs++;
+	}
 }
 
-void loadLinux(void* buf, long size, uint32_t vsize)
+void* load(void* buf)
 {
-	// https://stackoverflow.com/questions/37122186/c-put-x86-instructions-into-array-and-execute-them
+	MAGE_HEADER* info = (MAGE_HEADER*)buf;
+
+#ifdef WIN32
+	LPVOID vMem = VirtualAlloc(NULL, info->csize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+#elif UNIX
+	// todo
+#endif
+	if (!vMem) error("[-] Unable to allocate virtual memory", NULL);
+
+	memcpy((uint8_t*)vMem, (uint8_t*)buf + info->cptr, info->csize);
+	
+	return (uint8_t*)vMem + info->entry;
+}
+
+void error(const char* msg, const char* name)
+{
+#ifdef WIN32
+	if (AllocConsole()) // used to display errors using windows subsystem
+	{
+		FILE* fpstdout = stdin;
+		freopen_s(&fpstdout, "CONOUT$", "w", stdout);
+	}
+#elif UNIX
+	// todo
+#endif
+
+	if (name) printf("[-] %s: %s\n", msg, name);
+	else printf("[-] %s\n", msg);
+	printf("\nPress any key to exit.\n");
+
+#ifdef WIN32
+	_getch();
+#endif
+
+	exit(1);
 }

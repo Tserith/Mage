@@ -9,3 +9,5 @@
 !include
 !include/*.h
 !include/*.inc
+!img
+!img/*.PNG

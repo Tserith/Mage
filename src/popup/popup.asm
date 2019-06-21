@@ -1,20 +1,19 @@
-		global start
-		
 		extern MessageBoxA
-		extern ExitProcess
 
+		default rel
 		section .text
-start:	
-		; probably should set rsp and rbp to top of stack
-		sub rsp, 28h ; stack space required for function calls
-		mov r9, 0
-		lea r8, [rel title]
-		lea rdx, [rel text]
-		mov rcx, 0
-		call MessageBoxA
-		xor rcx, rcx
-		call ExitProcess
+		global main
+main:
+		push rbp
 
-		title	db 'Message Box', 0
-		text	db 'Hello World!', 0
-end:
+		mov rcx, 0
+		lea rdx, [text]
+		lea r8, [title]
+		mov r9, 0
+		call MessageBoxA
+
+		pop rbp
+		ret
+
+title	db 'Message Box', 0
+text	db 'Hello World!', 0

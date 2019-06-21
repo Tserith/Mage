@@ -3,7 +3,7 @@
 int main(int argc, char* argv[])
 {
 	obj* objList = NULL;
-	str* libList = NULL;
+	lib* libList = NULL;
 	char* entrySymbol = DEFAULT_ENTRY_SYMBOL;
 	char* outFile = DEFAULT_OUT_FILE;
 
@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
 		printf("Usage: mink [OBJECT FILES] [FLAGS]\n");
 		printf("Flags:\n");
 		printf("\t-l [LIBRARIES]\n");
-		printf("\t-s [ENTRY SYMBOL] *Default: start\n");
+		printf("\t-s [ENTRY SYMBOL] *Default: main\n");
 		exit(1);
 	}
 
@@ -46,9 +46,8 @@ int main(int argc, char* argv[])
 				}
 
 				uint16_t len = (uint16_t)strnlen(argv[i], MAX_SYM_LEN);
-				str* tempLib = (str*)malloc(sizeof(str));
-				tempLib->name = (char*)malloc(len + 1);
-				strncpy(tempLib->name, argv[i], len + 1);
+				lib* tempLib = (lib*)malloc(sizeof(lib));
+				tempLib->name = argv[i];
 
 				tempLib->next = libList;
 				libList = tempLib;
@@ -94,11 +93,7 @@ int main(int argc, char* argv[])
 
 	printf("[+] Linked object files into MAGE binary\n");
 	printf("\tSize:\t\t0x%x bytes\n", binSize);
-	printf("\tStack size:\t0x%x bytes", ((MAGE_HEADER*)bin)->ssize);
-	if (((MAGE_HEADER*)bin)->ssize == DEFAULT_STACK_SIZE) printf("\t*Default");
-	printf("\n\tEntry address:\t0x%x bytes", ((MAGE_HEADER*)bin)->entry);
-	if (!((MAGE_HEADER*)bin)->entry) printf("\t*Default");
-	printf("\n");
+	printf("\tEntry address:\t0x%x\n", ((MAGE_HEADER*)bin)->entry);
 
 	// write out MAGE executable
 	FILE* fd = fopen(outFile, "wb");
@@ -123,6 +118,7 @@ int main(int argc, char* argv[])
 		}
 
 		obj = obj->next;
+		free(objList->code);
 		free(objList);
 	}
 
@@ -202,7 +198,7 @@ obj* parseCOFF(uint8_t* buf, long size) // should probably use size to prevent s
 				tempSym->next = NULL;
 				tempSym->value = symbol->Value;
 				tempSym->class = symbol->StorageClass;
-				tempSym->type = NOREL;
+				tempSym->relocs = NULL;
 				uint16_t len;
 
 				if (symbol->N.Name.Short) // short name
@@ -231,10 +227,17 @@ obj* parseCOFF(uint8_t* buf, long size) // should probably use size to prevent s
 					PIMAGE_RELOCATION reloc = (void*)(buf + section->PointerToRelocations + (sizeof(IMAGE_RELOCATION) * j));
 					tempSym = tempObj->symbols;
 
-					// set symbol as relocation
-					for (int k = 0; k < (int)reloc->SymbolTableIndex; k++) tempSym = tempSym->next;
-					tempSym->value = reloc->VirtualAddress;
-					tempSym->type = REL;
+					if (reloc->Type == IMAGE_REL_AMD64_REL32)
+					{
+						// set symbol as relocation
+						for (int k = 0; k < (int)reloc->SymbolTableIndex; k++) tempSym = tempSym->next;
+
+						rel* tempRel = (rel*)malloc(sizeof(rel));
+
+						tempRel->vaddr = reloc->VirtualAddress;
+						tempRel->next = tempSym->relocs;
+						tempSym->relocs = tempRel;
+					}
 				}
 			}
 		}
@@ -250,20 +253,14 @@ obj* parseELF(uint8_t* buf, long size)
 	return tempObj;
 }
 
-uint16_t link(void** bin, obj* objList, str* strList, char* entrySym)
+uint16_t link(void** bin, obj* objList, lib* libList, char* entrySym)
 {
 	uint8_t* buf = (uint8_t*)malloc(sizeof(MAGE_HEADER));
 	uint16_t rptr, cptr, buflen = sizeof(MAGE_HEADER);
-	uint32_t ssize = DEFAULT_STACK_SIZE;
-	uint32_t entry = 0;
+	uint32_t entry = -1;
 
-	// allocate space for import table
-	for (str* lib = strList; lib != NULL; lib = lib->next)
-	{
-		buflen += sizeof(MAGE_IMPORT_ENTRY);
-		buf = realloc(buf, buflen);
-	}
-
+	// calculate pointer to relocations
+	for (lib* lib = libList; lib != NULL; lib = lib->next) buflen += sizeof(MAGE_IMPORT_ENTRY);
 	rptr = buflen;
 
 	// resolve relocations between objects
@@ -274,18 +271,27 @@ uint16_t link(void** bin, obj* objList, str* strList, char* entrySym)
 			uint32_t offset = 0;
 
 			// search for symbol in other objects
-			for (obj* obj2 = objList; sym1->type == REL && obj2 != NULL; obj2 = obj2->next)
+			for (obj* obj2 = objList; sym1->relocs && obj2 != NULL; obj2 = obj2->next)
 			{
 				if (obj1 != obj2)
 				{
 					for (sym* sym2 = obj2->symbols; sym2 != NULL; sym2 = sym2->next)
 					{
-						if (sym2->type == NOREL && sym2->class == IMAGE_SYM_CLASS_EXTERNAL
+						if (!sym2->relocs && sym2->class == IMAGE_SYM_CLASS_EXTERNAL
 							&& !strncmp(sym1->name, sym2->name, MAX_SYM_LEN))
 						{
-							printf("%x\n", offset);
-							*(MAGE_RELOC_VADDR*)(obj1->code + sym1->value) = offset + sym2->value;
-							sym1->type = NOREL;
+							rel* reloc = sym2->relocs;
+
+							while (reloc != NULL)
+							{
+								*(MAGE_RELOC_VADDR*)(obj1->code + reloc->vaddr) = offset + sym2->value;
+
+								sym2->relocs = NULL;
+								rel* tmp = reloc;
+								reloc = reloc->next;
+								free(tmp);
+							}
+							
 							break;
 						}
 					}
@@ -296,72 +302,71 @@ uint16_t link(void** bin, obj* objList, str* strList, char* entrySym)
 		}
 	}
 
-	uint32_t offset = 0;
-
 	for (obj* obj = objList; obj != NULL; obj = obj->next)
 	{
 		for (sym* sym = obj->symbols; sym != NULL; sym = sym->next)
 		{
-			// create relocation table for remaining relocations
-			if (sym->type == REL)
-			{
-				buf = realloc(buf, buflen + sizeof(MAGE_RELOC_ENTRY));
-				((MAGE_RELOC_ENTRY*)(buf + buflen))->vaddr = offset + sym->value;
-				buflen += sizeof(MAGE_RELOC_ENTRY);
+			for (rel* rel = sym->relocs; rel != NULL; rel = rel->next) buflen += sizeof(MAGE_RELOC_ENTRY);
 
-				// create new string for relocation symbol name
-				uint16_t len = (uint16_t)strnlen(sym->name, MAX_SYM_LEN);
-				str* tempStr = (str*)malloc(sizeof(str));
-				tempStr->name = (char*)malloc(len + 1);
-				strncpy(tempStr->name, sym->name, len);
-				tempStr->name[len] = '\0';
-				tempStr->next = NULL;
-				
-				// append new string to end of string list
-				if (!strList) strList = tempStr;
-				else
-				{
-					str* tmp = strList;
-					for (; tmp->next != NULL; tmp = tmp->next);
-					tmp->next = tempStr;
-				}
-			}
-
-			// search for entry and stack symbols
-			if (sym->class == IMAGE_SYM_CLASS_EXTERNAL)
-			{
-				if (!strncmp(sym->name, entrySym, MAX_SYM_LEN)) entry = sym->value;
-				if (!strncmp(sym->name, STACK_SIZE_SYMBOL, MAX_SYM_LEN)) ssize = sym->value;
-			}
+			// search for entry symbol
+			if (sym->class == IMAGE_SYM_CLASS_EXTERNAL && !strncmp(sym->name, entrySym, MAX_SYM_LEN))
+				entry = sym->value;
 		}
-
-		offset += obj->csize;
 	}
+
+	if (entry == -1)
+	{
+		printf("[-] Entry symbol could not be found: %s\n", entrySym);
+		exit(1);
+	}
+
+	// allocate memory for import and relocation table
+	buf = realloc(buf, buflen);
 	
 	uint16_t addr = sizeof(MAGE_HEADER);
 
 	// create string table and fill in addresses in import and relocation tables
-	for (str* str = strList; str != NULL; str = str->next)
+	for (lib* lib = libList; lib != NULL; lib = lib->next)
 	{
-		uint16_t len = (uint16_t)strnlen(str->name, MAX_SYM_LEN);
+		uint16_t len = (uint16_t)strnlen(lib->name, MAX_SYM_LEN);
+
+		// remove .lib
+		if (!strncmp(lib->name + len - 4, ".lib", 4)) len -= 4;
+
 		buf = realloc(buf, buflen + len + 1);
-		strncpy(buf + buflen, str->name, len);
+		strncpy(buf + buflen, lib->name, len);
 		buf[buflen + len] = '\0';
+
 		buflen += len + 1;
 
 		*(MAGE_STR_PTR*)(buf + addr) = buflen - len - 1;
-
-		if (addr >= rptr) addr += sizeof(MAGE_RELOC_ENTRY);
-		else
+		addr += sizeof(MAGE_IMPORT_ENTRY);
+	}
+	for (obj* obj = objList; obj != NULL; obj = obj->next)
+	{
+		for (sym* sym = obj->symbols; sym != NULL; sym = sym->next)
 		{
-			addr += sizeof(MAGE_IMPORT_ENTRY);
-			free(str->name);
+			uint16_t len = 0;
+
+			if (sym->relocs)
+			{
+				len = (uint16_t)strnlen(sym->name, MAX_SYM_LEN);
+				buf = realloc(buf, buflen + len + 1);
+				strncpy(buf + buflen, sym->name, len);
+				buf[buflen + len] = '\0';
+				buflen += len + 1;
+			}
+			for (rel* rel = sym->relocs; rel != NULL; rel = rel->next)
+			{
+				*(MAGE_STR_PTR*)(buf + addr) = buflen - len - 1;
+				addr += sizeof(MAGE_RELOC_ENTRY);
+			}
 		}
 	}
 	
 	cptr = buflen;
 
-	// add code
+	// add code sections
 	for (obj* obj = objList; obj != NULL; obj = obj->next)
 	{
 		buf = realloc(buf, buflen + obj->csize);
@@ -369,12 +374,39 @@ uint16_t link(void** bin, obj* objList, str* strList, char* entrySym)
 		buflen += obj->csize;
 	}
 
+	uint32_t offset = 0;
+	uint16_t relocs = rptr;
+
+	// create thunks for relocations and fill in relocation table
+	for (obj* obj = objList; obj != NULL; obj = obj->next)
+	{
+		for (sym* sym = obj->symbols; sym != NULL; sym = sym->next)
+		{
+			if (sym->relocs)
+			{
+				buflen += 14;
+				buf = realloc(buf, buflen);
+
+				*(uint64_t*)(buf + buflen - 14) = 0x25FF; // jmp far (6 bytes)
+				*(uint64_t*)(buf + buflen - 8) = 0; // absolute address (dlinked)
+			}
+			for (rel* rel = sym->relocs; rel != NULL; rel = rel->next)
+			{
+				// point call operands to thunk
+				*(uint32_t*)(buf + cptr + offset + rel->vaddr) = buflen - cptr - offset - rel->vaddr - 18;
+				((MAGE_RELOC_ENTRY*)(buf + relocs))->vaddr = (MAGE_RELOC_VADDR)buflen - cptr - 8;
+				relocs += sizeof(MAGE_RELOC_ENTRY);
+			}
+		}
+
+		offset += obj->csize;
+	}
+
 	MAGE_HEADER* header = (void*)buf;
 
 	header->magic = MAGE_MAGIC;
 	header->entry = entry;
 	header->csize = buflen - cptr;
-	header->ssize = ssize;
 	header->rptr = rptr;
 	header->cptr = cptr;
 	

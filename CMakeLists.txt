@@ -27,7 +27,7 @@ foreach(prog ${PROGRAM_LIST})
 	add_executable(${prog} ${SOURCES})
 	add_dependencies(${prog} mink) # compile linker first
 
-	if(false) # link to MAGE executable
+	if(true) # link to MAGE executable
 		set(CMAKE_ASM_NASM_LINK_EXECUTABLE "mink <OBJECTS> -o <TARGET_NAME>.mage -l <LINK_LIBRARIES>")
 	else() # link normally to PE executable
 		if(WIN32)

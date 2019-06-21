@@ -46,8 +46,6 @@
 
 	free(buf);
 
-	// set stack pointer to jmp - buf->entry + buf->csize
-
 	// execute program
 	(*(void(*)())(code))();
 

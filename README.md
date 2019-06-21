@@ -1,8 +1,8 @@
 # Minimal Agnostic General Executable
 
+Perhaps one day I'll extend its support, safely parse files, and write a compiler for custom object types. But until then this project is a vulnerability-ridden PoC.
+
 ![](img/example.PNG)
-
-
 
 ## Limitations
 

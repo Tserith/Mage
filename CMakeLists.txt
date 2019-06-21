@@ -8,7 +8,7 @@ add_executable(moad src/loader.c)
 add_executable(mink src/linker.c)
 
 if(MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	set_target_properties(moad PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
 endif()
 

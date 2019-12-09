@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #define MAGE_MAGIC 0x4547414d
+#define MAGE(x) ((MAGE_HEADER*)x)
 
 #pragma pack(1)
 

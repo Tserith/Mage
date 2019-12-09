@@ -17,7 +17,7 @@ main:
 		lea r9, [n]
 		push 0
 		call WriteConsoleA
-		jmp $				; infinite loop
+		ret
 
 n		dd 0				; # of chars written
 text	db 'Hello World!', 0

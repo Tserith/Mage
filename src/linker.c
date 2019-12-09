@@ -166,12 +166,12 @@ obj* parseCOFF(uint8_t* buf, long size) // should probably use size to prevent s
 	tempObj->symbols = NULL;
 	sym* tempSym = NULL;
 
-	// find .text section
+	// find section that starts with .text
 	for (int i = 0; i < sectionCount; i++)
 	{
 		PIMAGE_SECTION_HEADER section = (void*)(buf + sizeof(IMAGE_FILE_HEADER) + (sizeof(IMAGE_SECTION_HEADER) * i));
 
-		if (!strncmp(section->Name, ".text", 8))
+		if (!strncmp(section->Name, ".text", 5))
 		{
 			tempObj->csize = section->SizeOfRawData;
 			tempObj->code = (uint8_t*)malloc(tempObj->csize);

@@ -4,10 +4,12 @@
 !CMakeLists.txt
 !src
 !src/*.c
+!src/*.cpp
 !src/*/
 !src/*/*.asm
 !include
 !include/*.h
+!include/*.hpp
 !include/*.inc
 !img
 !img/*.PNG

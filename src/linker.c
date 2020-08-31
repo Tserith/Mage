@@ -277,16 +277,16 @@ uint16_t link(void** bin, obj* objList, lib* libList, char* entrySym)
 				{
 					for (sym* sym2 = obj2->symbols; sym2 != NULL; sym2 = sym2->next)
 					{
-						if (!sym2->relocs && sym2->class == IMAGE_SYM_CLASS_EXTERNAL
+						if (sym2->class == IMAGE_SYM_CLASS_EXTERNAL
 							&& !strncmp(sym1->name, sym2->name, MAX_SYM_LEN))
 						{
-							rel* reloc = sym2->relocs;
+							rel* reloc = sym1->relocs;
 
 							while (reloc != NULL)
 							{
 								*(MAGE_RELOC_VADDR*)(obj1->code + reloc->vaddr) = offset + sym2->value;
 
-								sym2->relocs = NULL;
+								sym1->relocs = NULL;
 								rel* tmp = reloc;
 								reloc = reloc->next;
 								free(tmp);

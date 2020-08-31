@@ -1,74 +1,143 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <iostream>
+#include <sstream>
 #include <inttypes.h>
 #include <Zydis/Zydis.h>
+#include <../src/Generated/EnumRegister.inc>
 #include "mage.h"
 
-#define ICODE_MOV 1
-#define ICODE_CALL 2
-#define ICODE_RET 3
-#define ICODE_ADD 4
-#define ICODE_JNE 5
-#define ICODE_JEQ 6
-// etc
+enum class itype
+{
+	none,
+	assign,
+	call,
+	ret,
+	add,
+	jne,
+	jeq
+};
 
-#define EXPR_CONSTANT 1
-#define EXPR_ADDRESS 2
-#define EXPR_REGISTER 3
-#define EXPR_UNINIT 4
+enum class optr
+{
+	none,
+	mov,
+	add,
+	sub,
+	mul,
+	div,
+	or,
+	xor,
+	and,
+	not,
+	shl,
+	shr,
+	deref,
+	ref
+};
 
-#define EXPR_CHAR 0x10
-#define EXPR_SHORT 0x20
-#define EXPR_INTEGER 0x30
-#define EXPR_LONG 0x40
-#define EXPR_FLOAT 0x50
-#define EXPR_DOUBLE 0x60
-// ah register?
-
-#define EXPR_UNSIGNED 0x80
-#define EXPR_SIGNED 0x100
-
-#define REG_RAX 1
-#define REG_RBX 2
-#define REG_RCX 3
-#define REG_RDX 4
-
-#define REGISTER_COUNT 4
+enum class idtype
+{
+	none,
+	reg,
+	var
+};
 
 using namespace std;
+
+// if left and right pointers are null (leaf) it's an operand, otherwise, an operator
+struct expr
+{
+	shared_ptr<expr> left = nullptr;
+	shared_ptr<expr> right = nullptr;
+	idtype type = idtype::none;
+	uint16_t id = 0;
+	union
+	{
+		struct
+		{
+			optr type;
+		}operation;
+		uint64_t value;
+	};
+
+	expr()
+	{
+		operation.type = optr::none;
+	}
+};
 
 struct icode
 {
 	shared_ptr<icode> branch = nullptr;
 	shared_ptr<icode> next = nullptr;
-	shared_ptr<icode> expr = nullptr;
-	uint8_t type = NULL;
+	shared_ptr<expr> expr = nullptr;
+	itype type = itype::none;
 };
 
-struct expr
+enum class varType
 {
-	shared_ptr<icode> left = nullptr;
-	shared_ptr<icode> right = nullptr;
-	uint64_t value = NULL;
-	uint8_t type = NULL;
+	none,
+	stack,
+	reg
 };
 
 struct var
 {
 	string name;
-	uint8_t type = NULL;
+	varType type = varType::none;
+	uint16_t value;
 	shared_ptr<var> next = nullptr;
 };
 
 struct func
 {
 	shared_ptr<icode> code = nullptr;
-	shared_ptr<var> locals = nullptr;
 	string name;
 	uint8_t cConv = NULL;
+
+	shared_ptr<var> getVar(uint16_t value, varType type)
+	{
+		for (auto temp = locals; temp; temp = temp->next)
+		{
+			if (temp->value == value && temp->type == type)
+			{
+				return temp;
+			}
+		}
+
+		addVar(value, type);
+		return locals;
+	}
+	
+private:
+	shared_ptr<var> locals = nullptr;
+
+	void addVar(uint16_t value, varType type)
+	{
+		auto newVar = make_shared<var>();
+
+		newVar->name = "var_";
+		newVar->value = value;
+		newVar->type = type;
+
+		if (type == varType::stack)
+		{
+			stringstream stream;
+			stream << hex << value;
+			newVar->name += stream.str();
+		}
+		if (type == varType::reg)
+		{
+			newVar->name += string(STR_REGISTER[value].data);
+		}
+
+		newVar->next = locals;
+		locals = newVar;
+	}
 };
 
-void genIRx64(shared_ptr<icode> tail, shared_ptr<expr> registers[REGISTER_COUNT], uint64_t address, shared_ptr<var> args);
-string decompile(shared_ptr<icode> IR);
+void genIRx64(shared_ptr<icode> tail, shared_ptr<expr> registers[ZYDIS_REGISTER_MAX_VALUE], uint64_t address, shared_ptr<var> args);
+string decompile(shared_ptr<func> func);
 long readFileRaw(char* file, void** buf);

@@ -23,6 +23,7 @@ if(EXISTS "C:/Zydis/include")
 endif()
 
 if(MSVC)
+	set(CMAKE_C_FLAGS_RELEASE "/GS-")
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	set_target_properties(moad PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
 endif()
@@ -35,28 +36,23 @@ elseif(UNIX)
 endif()
 
 # list of projects to compile
-set(PROGRAM_LIST popup print)
+set(PROGRAM_LIST popup print template)
 
 foreach(prog ${PROGRAM_LIST})
-	file(GLOB SOURCES src/${prog}/*.asm)
+	file(GLOB SOURCES src/${prog}/*.asm src/${prog}/*.c)
 	add_executable(${prog} ${SOURCES})
 	add_dependencies(${prog} mink) # compile linker first
 
-	if(true) # link to MAGE executable
-		set(CMAKE_ASM_NASM_LINK_EXECUTABLE "mink <OBJECTS> -o <TARGET_NAME>.mage -l <LINK_LIBRARIES>")
-	else() # link normally to PE executable
-		if(WIN32)
-			set(CMAKE_ASM_NASM_LINK_EXECUTABLE "link <OBJECTS> /ENTRY:main /SUBSYSTEM:WINDOWS /OUT:<TARGET> <LINK_LIBRARIES>")
-		elseif(UNIX)
-			# todo
-		endif()
-	endif()
+	set_target_properties(${prog} PROPERTIES LINKER_LANGUAGE ASM_NASM)
+	set(CMAKE_ASM_NASM_LINK_EXECUTABLE "mink <OBJECTS> -o <TARGET_NAME>.mage -l <LINK_LIBRARIES>")
 endforeach(prog)
 
 # project libraries
 if(WIN32)
 	target_link_libraries(popup user32)
 	target_link_libraries(print kernel32)
+	target_link_libraries(template user32)
+
 elseif(UNIX)
 	# todo
 endif()

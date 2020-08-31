@@ -96,7 +96,7 @@ void dlink(void* buf)
 	// first string pointer assumed to be beginning of string table
 	while ((uint8_t*)relocs < (uint8_t*)buf + *(MAGE_STR_PTR*)((uint8_t*)buf + sizeof(MAGE_HEADER)))
 	{
-		if (relocs->strptr) error("Unable to link function", (uint8_t*)buf + relocs->strptr);
+		if (relocs->strptr) error("Unable to link symbol", (uint8_t*)buf + relocs->strptr);
 
 		relocs++;
 	}

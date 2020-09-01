@@ -1,19 +1,20 @@
 cmake_minimum_required(VERSION 3.1)
 project(Mage)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(ASM_NASM)
-include_directories("include")
+include_directories(".")
 
-add_executable(moad src/loader.c)
-add_executable(mink src/linker.c)
+add_executable(moad moad/loader.c)
+add_executable(mink mink/linker.c)
 
 if(EXISTS "C:/Zydis/include")
-	add_executable(seer src/decompiler.cpp)
+	file(GLOB SEER seer/*.cpp)
+	add_executable(seer ${SEER})
 	set(ZYDIS_LIB "C:/Zydis/msvc/bin/ReleaseX64")
 	set_target_properties(seer PROPERTIES LINK_FLAGS "${ZYDIS_LIB}/Zydis.lib")
-	include_directories("include" "C:/Zydis/include" "C:/Zydis/dependencies/zycore/include" "C:/Zydis/msvc")
+	include_directories("C:/Zydis/include" "C:/Zydis/dependencies/zycore/include" "C:/Zydis/msvc")
 
 	if(WIN32)
 		# copy dll to output directory
@@ -23,6 +24,7 @@ if(EXISTS "C:/Zydis/include")
 endif()
 
 if(MSVC)
+	set(CMAKE_C_FLAGS_DEBUG "/GS-")
 	set(CMAKE_C_FLAGS_RELEASE "/GS-")
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	set_target_properties(moad PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
@@ -36,10 +38,10 @@ elseif(UNIX)
 endif()
 
 # list of projects to compile
-set(PROGRAM_LIST popup print template)
+set(PROGRAM_LIST popup print test)
 
 foreach(prog ${PROGRAM_LIST})
-	file(GLOB SOURCES src/${prog}/*.asm src/${prog}/*.c)
+	file(GLOB SOURCES projects/${prog}/*.asm projects/${prog}/*.c)
 	add_executable(${prog} ${SOURCES})
 	add_dependencies(${prog} mink) # compile linker first
 
@@ -51,7 +53,7 @@ endforeach(prog)
 if(WIN32)
 	target_link_libraries(popup user32)
 	target_link_libraries(print kernel32)
-	target_link_libraries(template user32)
+	target_link_libraries(test user32)
 
 elseif(UNIX)
 	# todo

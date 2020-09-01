@@ -8,16 +8,7 @@
 #include <../src/Generated/EnumRegister.inc>
 #include "mage.h"
 
-enum class itype
-{
-	none,
-	assign,
-	call,
-	ret,
-	add,
-	jne,
-	jeq
-};
+using namespace std;
 
 enum class optr
 {
@@ -37,22 +28,19 @@ enum class optr
 	ref
 };
 
-enum class idtype
+enum class leaf
 {
 	none,
+	raw,
 	reg,
 	var
 };
 
-using namespace std;
-
-// if left and right pointers are null (leaf) it's an operand, otherwise, an operator
 struct expr
 {
 	shared_ptr<expr> left = nullptr;
 	shared_ptr<expr> right = nullptr;
-	idtype type = idtype::none;
-	uint16_t id = 0;
+	leaf type = leaf::none;
 	union
 	{
 		struct
@@ -64,8 +52,19 @@ struct expr
 
 	expr()
 	{
-		operation.type = optr::none;
+		value = 0;
 	}
+};
+
+enum class itype
+{
+	none,
+	assign,
+	call,
+	ret,
+	add,
+	jne,
+	jeq
 };
 
 struct icode
@@ -87,7 +86,7 @@ struct var
 {
 	string name;
 	varType type = varType::none;
-	uint16_t value;
+	uint64_t value;
 	shared_ptr<var> next = nullptr;
 };
 
@@ -97,7 +96,7 @@ struct func
 	string name;
 	uint8_t cConv = NULL;
 
-	shared_ptr<var> getVar(uint16_t value, varType type)
+	shared_ptr<var> getVar(uint64_t value, varType type)
 	{
 		for (auto temp = locals; temp; temp = temp->next)
 		{
@@ -110,11 +109,11 @@ struct func
 		addVar(value, type);
 		return locals;
 	}
-	
+
 private:
 	shared_ptr<var> locals = nullptr;
 
-	void addVar(uint16_t value, varType type)
+	void addVar(uint64_t value, varType type)
 	{
 		auto newVar = make_shared<var>();
 
@@ -138,6 +137,13 @@ private:
 	}
 };
 
-void genIRx64(shared_ptr<icode> tail, shared_ptr<expr> registers[ZYDIS_REGISTER_MAX_VALUE], uint64_t address, shared_ptr<var> args);
+extern ZydisDecoder decoder;
+extern ZydisFormatter formatter;
+extern map<uint64_t, shared_ptr<func>> functions;
+extern map<uint64_t, shared_ptr<icode>> instructions;
+extern uint64_t baseAddress;
+extern uint32_t codeSize;
+extern void* bin;
+
+void parse(shared_ptr<icode> tail, shared_ptr<expr> registers[ZYDIS_REGISTER_MAX_VALUE], uint64_t address, shared_ptr<var> args);
 string decompile(shared_ptr<func> func);
-long readFileRaw(char* file, void** buf);

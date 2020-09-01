@@ -1,6 +1,6 @@
 # Minimal Agnostic General Executable
 
-The purpose of this project is to experiment with topics related to compilation rather than to create a product with practical use cases. Thus, none of these tools will safely parse malformed files. Do not use these tools on files you did not compile yourself.
+The purpose of this project is to experiment with topics related to compilation rather than create a product with practical use cases. Thus, these tools will not safely parse malformed files. Do not use these tools on files you did not compile yourself.
 
 ![](img/example.PNG)
 
